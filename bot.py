@@ -3,8 +3,12 @@ from datetime import datetime, timedelta
 import os
 import re
 import logging
+import pytz
 
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"), signing_secret=os.environ.get("SLACK_SIGNING_SECRET"))
+
+# Replace 'US/Eastern' with your time zone (e.g., 'US/Pacific', 'Europe/London')
+LOCAL_TZ = pytz.timezone('US/Eastern')
 
 equipment_status = {
     "pelotonmast": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
@@ -27,8 +31,8 @@ def parse_time(time_str):
         hour += 12
     elif period == "am" and hour == 12:
         hour = 0
-    now = datetime.now()
-    return datetime(now.year, now.month, now.day, hour, 0)
+    now = datetime.now(LOCAL_TZ)
+    return LOCAL_TZ.localize(datetime(now.year, now.month, now.day, hour, 0))
 
 def is_slot_free(equip, start_time, end_time):
     current_user = equipment_status[equip]["user"]
@@ -60,8 +64,9 @@ def start_equipment(ack, respond, command):
         respond(f"{equip} is in use by <@{equipment_status[equip]['user']}> until {equipment_status[equip]['end_time'].strftime('%H:%M')}.")
         return
     user = command["user_id"]
-    end_time = datetime.now() + timedelta(minutes=duration)
-    if not is_slot_free(equip, datetime.now(), end_time):
+    start_time = datetime.now(LOCAL_TZ)
+    end_time = start_time + timedelta(minutes=duration)
+    if not is_slot_free(equip, start_time, end_time):
         respond(f"{equip} is reserved during that time. Check /check.")
         return
     equipment_status[equip]["user"] = user
@@ -130,7 +135,7 @@ def reserve_equipment(ack, respond, command):
         respond("Duration must be a number (e.g., 30 or 30min)")
         return
     end_time = start_time + timedelta(minutes=duration)
-    if start_time < datetime.now():
+    if start_time < datetime.now(LOCAL_TZ):
         respond("Can’t reserve in the past!")
         return
     user = command["user_id"]
@@ -146,11 +151,11 @@ def reserve_equipment(ack, respond, command):
 def show_status(ack, respond, command):
     ack()
     status_msg = "Equipment Status:\n"
-    now = datetime.now()
+    now = datetime.now(LOCAL_TZ)
     for equip, info in equipment_status.items():
         status_msg += f"{equip}:\n"
         if info["user"]:
-            status_msg += f"  Current: <@{info['user']}> until {info['end_time'].strftime('%H:%M')}\n"
+            status_msg += f"  Current: <@{info['user']}> until {info['end_time'].astimezone(LOCAL_TZ).strftime('%H:%M')}\n"
         else:
             status_msg += "  Current: Free\n"
         status_msg += f"  Waitlist: {len(info['waitlist'])}\n"
@@ -158,7 +163,7 @@ def show_status(ack, respond, command):
             status_msg += "  Reservations:\n"
             for res in sorted(info["reservations"], key=lambda x: x["start_time"]):
                 if res["end_time"] > now:
-                    status_msg += f"    <@{res['user']}> {res['start_time'].strftime('%H:%M')} - {res['end_time'].strftime('%H:%M')}\n"
+                    status_msg += f"    <@{res['user']}> {res['start_time'].astimezone(LOCAL_TZ).strftime('%H:%M')} - {res['end_time'].astimezone(LOCAL_TZ).strftime('%H:%M')}\n"
     respond(status_msg)
 
 if __name__ == "__main__":
