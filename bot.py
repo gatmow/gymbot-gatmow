@@ -20,13 +20,13 @@ equipment_status = {
 
 def parse_time(time_str):
     logging.debug(f"Parsing time string: {time_str}")
-    time_str = time_str.lower().replace(" ", "")
     now = datetime.now(LOCAL_TZ)
     max_future = now + timedelta(hours=12)
 
+    # Handle "tomorrow" or just time
     if "tomorrow" in time_str:
         day = now + timedelta(days=1)
-        time_part = time_str.replace("tomorrow", "")
+        time_part = time_str.replace("tomorrow", "").strip()
         logging.debug(f"Detected 'tomorrow', using day: {day.strftime('%Y-%m-%d')}")
     else:
         day = now
@@ -139,11 +139,15 @@ def wait_equipment(ack, respond, command):
 @app.command("/reserve")
 def reserve_equipment(ack, respond, command):
     ack()
-    args = command["text"].split()
-    if len(args) != 3:
+    text = command["text"].strip()
+    # Split into equipment, time (multi-word), and duration
+    parts = text.split()
+    if len(parts) < 3:
         respond("Usage: /reserve [equipment] [time] [minutes]\nExamples: /reserve pelotonmast 4pm 30min, /reserve pelotontank tomorrow 6am 30min")
         return
-    equip, time_str, duration_str = args[0], args[1], args[2]
+    equip = parts[0]
+    duration_str = parts[-1]
+    time_str = " ".join(parts[1:-1])  # Join all but first and last as time
     if equip not in equipment_status:
         respond("Invalid equipment. Options: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
