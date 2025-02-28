@@ -19,38 +19,40 @@ equipment_status = {
 }
 
 def parse_time(time_str):
+    logging.debug(f"Parsing time string: {time_str}")
     time_str = time_str.lower().replace(" ", "")
     now = datetime.now(LOCAL_TZ)
     max_future = now + timedelta(hours=12)
 
-    # Handle "tomorrow" or date (e.g., "3/1 6am")
     if "tomorrow" in time_str:
         day = now + timedelta(days=1)
-        time_str = time_str.replace("tomorrow", "")
-    elif re.match(r"(\d{1,2}/\d{1,2})", time_str):
-        match = re.match(r"(\d{1,2}/\d{1,2})(.*)", time_str)
-        if match:
-            month, day = map(int, match.group(1).split('/'))
-            time_str = match.group(2)
-            day = LOCAL_TZ.localize(datetime(now.year, month, day))
-            if day < now - timedelta(days=1):  # Assume next year if past
-                day = day.replace(year=now.year + 1)
+        time_part = time_str.replace("tomorrow", "")
+        logging.debug(f"Detected 'tomorrow', using day: {day.strftime('%Y-%m-%d')}")
     else:
         day = now
+        time_part = time_str
+        logging.debug(f"Using current day: {day.strftime('%Y-%m-%d')}")
 
-    match = re.match(r"(\d{1,2})(am|pm)", time_str)
+    match = re.match(r"(\d{1,2})(am|pm)", time_part)
     if not match:
+        logging.debug("No valid time match found")
         return None
     hour, period = int(match.group(1)), match.group(2)
     if hour > 12 or hour < 1:
+        logging.debug(f"Invalid hour: {hour}")
         return None
     if period == "pm" and hour != 12:
         hour += 12
     elif period == "am" and hour == 12:
         hour = 0
     result = LOCAL_TZ.localize(datetime(day.year, day.month, day.day, hour, 0))
+    logging.debug(f"Parsed time: {result.strftime('%Y-%m-%d %H:%M %Z')}")
     if result > max_future:
-        return None  # Beyond 12 hours
+        logging.debug(f"Time exceeds 12-hour limit: {result} > {max_future}")
+        return None
+    if result < now:
+        logging.debug(f"Time is in the past: {result} < {now}")
+        return None
     return result
 
 def is_slot_free(equip, start_time, end_time):
@@ -147,7 +149,7 @@ def reserve_equipment(ack, respond, command):
         return
     start_time = parse_time(time_str)
     if not start_time:
-        respond("Invalid time format or beyond 12 hours. Use e.g., 4pm, tomorrow 6am (within 12 hours).")
+        respond("Invalid time format or beyond 12 hours. Use e.g., 4pm, tomorrow 6am (within 12 hours from now).")
         return
     try:
         duration = int(duration_str.replace("min", "").strip())
