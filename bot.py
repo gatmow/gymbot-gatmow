@@ -73,12 +73,12 @@ def start_equipment(ack, respond, command):
     respond(f"<@{user}> started {equip} for {duration} min. Free at {end_time.strftime('%H:%M')}.")
     app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> started {equip} until {end_time.strftime('%H:%M')}")
 
-@app.command("/done")
-def done_equipment(ack, respond, command):
+@app.command("/finish")
+def finish_equipment(ack, respond, command):
     ack()
     equip = command["text"].strip()
     if equip not in equipment_status:
-        respond("Usage: /done [equipment]\nOptions: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
+        respond("Usage: /finish [equipment]\nOptions: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
     user = command["user_id"]
     if equipment_status[equip]["user"] != user:
