@@ -32,7 +32,6 @@ def parse_time(time_str):
         time_part = time_str
         logging.debug(f"Using current day: {day.strftime('%Y-%m-%d')}")
 
-    # Match HH:MMam/pm or Ham/pm
     match = re.match(r"(\d{1,2})(?::(\d{2}))?(am|pm)", time_part.lower())
     if not match:
         logging.debug("No valid time match found")
