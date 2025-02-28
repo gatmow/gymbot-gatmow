@@ -1,4 +1,3 @@
-# Updated 2025-02-28
 from slack_bolt import App
 from datetime import datetime, timedelta
 import os
@@ -91,7 +90,8 @@ def start_equipment(ack, respond, command):
     if len(args) != 2:
         respond("Usage: /start [equipment] [minutes]\nOptions: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower")
         return
-    equip, duration_str = args[0].lower(), args[1]
+    equip = args[0].lower()
+    duration_str = args[1]
     if equip not in [key.lower() for key in equipment_status]:
         respond("Invalid equipment. Options: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower")
         return
