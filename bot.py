@@ -174,5 +174,5 @@ if __name__ == "__main__":
     import logging
     logging.basicConfig(level=logging.DEBUG)
     port = int(os.environ.get("PORT", 3000))
-    logging.debug(f"Starting Bolt app on 0.0.0.0:{port}")
-    app.start(host="0.0.0.0", port=port)
+    logging.debug(f"Starting Bolt app on port {port}")
+    app.start(port=port)
