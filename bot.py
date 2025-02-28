@@ -171,4 +171,8 @@ def show_status(ack, respond, command):
 
 # Start the app
 if __name__ == "__main__":
-    app.start(port=int(os.environ.get("PORT", 3000)))
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    port = int(os.environ.get("PORT", 3000))
+    logging.debug(f"Starting Bolt app on 0.0.0.0:{port}")
+    app.start(host="0.0.0.0", port=port)
