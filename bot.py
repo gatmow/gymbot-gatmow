@@ -20,6 +20,24 @@ equipment_status = {
 
 def parse_time(time_str):
     time_str = time_str.lower().replace(" ", "")
+    now = datetime.now(LOCAL_TZ)
+    max_future = now + timedelta(hours=12)
+
+    # Handle "tomorrow" or date (e.g., "3/1 6am")
+    if "tomorrow" in time_str:
+        day = now + timedelta(days=1)
+        time_str = time_str.replace("tomorrow", "")
+    elif re.match(r"(\d{1,2}/\d{1,2})", time_str):
+        match = re.match(r"(\d{1,2}/\d{1,2})(.*)", time_str)
+        if match:
+            month, day = map(int, match.group(1).split('/'))
+            time_str = match.group(2)
+            day = LOCAL_TZ.localize(datetime(now.year, month, day))
+            if day < now - timedelta(days=1):  # Assume next year if past
+                day = day.replace(year=now.year + 1)
+    else:
+        day = now
+
     match = re.match(r"(\d{1,2})(am|pm)", time_str)
     if not match:
         return None
@@ -30,8 +48,10 @@ def parse_time(time_str):
         hour += 12
     elif period == "am" and hour == 12:
         hour = 0
-    now = datetime.now(LOCAL_TZ)
-    return LOCAL_TZ.localize(datetime(now.year, now.month, now.day, hour, 0))
+    result = LOCAL_TZ.localize(datetime(day.year, day.month, day.day, hour, 0))
+    if result > max_future:
+        return None  # Beyond 12 hours
+    return result
 
 def is_slot_free(equip, start_time, end_time):
     current_user = equipment_status[equip]["user"]
@@ -119,7 +139,7 @@ def reserve_equipment(ack, respond, command):
     ack()
     args = command["text"].split()
     if len(args) != 3:
-        respond("Usage: /reserve [equipment] [time] [minutes]\nExample: /reserve pelotonmast 4pm 30min")
+        respond("Usage: /reserve [equipment] [time] [minutes]\nExamples: /reserve pelotonmast 4pm 30min, /reserve pelotontank tomorrow 6am 30min")
         return
     equip, time_str, duration_str = args[0], args[1], args[2]
     if equip not in equipment_status:
@@ -127,7 +147,7 @@ def reserve_equipment(ack, respond, command):
         return
     start_time = parse_time(time_str)
     if not start_time:
-        respond("Invalid time format. Use e.g., 4pm or 10am.")
+        respond("Invalid time format or beyond 12 hours. Use e.g., 4pm, tomorrow 6am (within 12 hours).")
         return
     try:
         duration = int(duration_str.replace("min", "").strip())
@@ -160,7 +180,7 @@ def cancel_reservation(ack, respond, command):
         return
     start_time = parse_time(time_str)
     if not start_time:
-        respond("Invalid time format. Use e.g., 4pm or 10am.")
+        respond("Invalid time format. Use e.g., 4pm or tomorrow 6am.")
         return
     user = command["user_id"]
     reservations = equipment_status[equip]["reservations"]
