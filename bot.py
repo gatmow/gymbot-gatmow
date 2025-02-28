@@ -87,7 +87,7 @@ def show_help(ack, respond, command):
             "- `/start [equipment] [minutes]` - Start now (e.g., `/start PelotonMast 30min`)\n"
             "- `/finish [equipment]` - End use (e.g., `/finish pelotonmast`)\n"
             "- `/wait [equipment]` - Join waitlist (e.g., `/wait Treadmill`)\n"
-            "- `/reserve [equipment] [time] [minutes]` - Book ahead (e.g., `/reserve PelotonTank tomorrow 8:30pm 60min`)\n"
+            "- `/reserve [equipment] [time] [minutes]` - Book ahead (e.g., `/reserve PelotonTank tomorrow 8:30pm 60`)\n"
             "- `/cancel [equipment] [start_time optional]` - Cancel (e.g., `/cancel pelotontank` or `/cancel PelotonTank tomorrow 6am`)\n"
             "- `/check` - See status\n"
             "Equipment: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower (case doesn’t matter!)")
@@ -122,7 +122,7 @@ def start_equipment(ack, respond, command):
     equipment_status[equip_key]["user"] = user
     equipment_status[equip_key]["end_time"] = end_time
     respond(f"<@{user}> started {equip_key} for {duration} min. Free at {end_time.strftime('%d-%b %-I:%M%p').lower()}.")
-    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> started {equip_key} until {end_time.strftime('%d-%b %-I:%M%p').lower()}")
+    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> started {equip_key} until {end_time.strftime('%d-%b %-I:%M%p')}")
 
 @app.command("/finish")
 def finish_equipment(ack, respond, command):
@@ -148,7 +148,7 @@ def finish_equipment(ack, respond, command):
             equipment_status[equip_key]["user"] = next_user
             equipment_status[equip_key]["end_time"] = end_time
             respond(f"{equip_key} is free! <@{next_user}> auto-started for {duration} min, free at {end_time.strftime('%d-%b %-I:%M%p').lower()}.")
-            app.client.chat_postMessage(channel="#gym-status", text=f"<@{next_user}> auto-started {equip_key} until {end_time.strftime('%d-%b %-I:%M%p').lower()} (from waitlist).")
+            app.client.chat_postMessage(channel="#gym-status", text=f"<@{next_user}> auto-started {equip_key} until {end_time.strftime('%d-%b %-I:%M%p')}")
         else:
             respond(f"{equip_key} is free! <@{next_user}>, you’re up, but it’s reserved soon—use /start.")
             app.client.chat_postMessage(channel="#gym-status", text=f"{equip_key} is free! <@{next_user}>, you’re up!")
@@ -181,7 +181,7 @@ def reserve_equipment(ack, respond, command):
     text = command["text"].strip()
     parts = text.split()
     if len(parts) < 3:
-        respond("Usage: /reserve [equipment] [time] [minutes]\nExamples: /reserve PelotonMast 8:30pm 60min, /reserve PelotonTank tomorrow 6am 30min")
+        respond("Usage: /reserve [equipment] [time] [minutes]\nExamples: /reserve PelotonMast 8:30pm 60, /reserve PelotonTank tomorrow 6am 30min")
         return
     equip = parts[0].lower()
     duration_str = parts[-1]
@@ -198,7 +198,7 @@ def reserve_equipment(ack, respond, command):
     try:
         duration = int(duration_str.replace("min", "").strip())
     except ValueError:
-        respond("Duration must be a number (e.g., 30 or 60min)")
+        respond("Duration must be a number (e.g., 30 or 60)")
         return
     end_time = start_time + timedelta(minutes=duration)
     if start_time < datetime.now(LOCAL_TZ):
@@ -206,7 +206,7 @@ def reserve_equipment(ack, respond, command):
         return
     user = command["user_id"]
     if not is_slot_free(equip, start_time, end_time):
-        respond(f"{equip_key} is booked or in use from {start_time.strftime('%d-%B %-I:%M%p').lower()} to {end_time.strftime('%d-%B %-I:%M%p').lower()}. Check /check.")
+        respond(f"{equip_key} is booked or in use from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}. Check /check.")
         return
     reservation = {"user": user, "start_time": start_time, "end_time": end_time}
     logging.debug(f"Appending reservation for {equip_key}")
