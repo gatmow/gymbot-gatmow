@@ -9,7 +9,6 @@ app = App(token=os.environ.get("SLACK_BOT_TOKEN"), signing_secret=os.environ.get
 
 LOCAL_TZ = pytz.timezone('US/Eastern')
 
-# Define with readable capitalization, but we'll match case-insensitively
 equipment_status = {
     "PelotonMast": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
     "PelotonTank": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
@@ -33,19 +32,21 @@ def parse_time(time_str):
         time_part = time_str
         logging.debug(f"Using current day: {day.strftime('%Y-%m-%d')}")
 
-    match = re.match(r"(\d{1,2})(am|pm)", time_part.lower())
+    # Match HH:MMam/pm or Ham/pm
+    match = re.match(r"(\d{1,2})(?::(\d{2}))?(am|pm)", time_part.lower())
     if not match:
         logging.debug("No valid time match found")
         return None
-    hour, period = int(match.group(1)), match.group(2)
-    if hour > 12 or hour < 1:
-        logging.debug(f"Invalid hour: {hour}")
+    hour, minutes, period = int(match.group(1)), match.group(2) or "00", match.group(3)
+    minutes = int(minutes)
+    if hour > 12 or hour < 1 or minutes >= 60:
+        logging.debug(f"Invalid time: hour={hour}, minutes={minutes}")
         return None
     if period == "pm" and hour != 12:
         hour += 12
     elif period == "am" and hour == 12:
         hour = 0
-    result = LOCAL_TZ.localize(datetime(day.year, day.month, day.day, hour, 0))
+    result = LOCAL_TZ.localize(datetime(day.year, day.month, day.day, hour, minutes))
     logging.debug(f"Parsed time: {result.strftime('%Y-%m-%d %H:%M %Z')}")
     if result > max_future:
         logging.debug(f"Time exceeds 24-hour limit: {result} > {max_future}")
@@ -56,7 +57,7 @@ def parse_time(time_str):
     return result
 
 def is_slot_free(equip, start_time, end_time):
-    equip = equip.lower()  # Normalize to lowercase for consistency
+    equip = equip.lower()
     current_user = equipment_status.get(equip, {}).get("user")
     if current_user and equipment_status[equip]["end_time"] > start_time:
         return False
@@ -78,7 +79,7 @@ def show_help(ack, respond, command):
             "- `/start [equipment] [minutes]` - Start now (e.g., `/start PelotonMast 30min`)\n"
             "- `/finish [equipment]` - End use (e.g., `/finish pelotonmast`)\n"
             "- `/wait [equipment]` - Join waitlist (e.g., `/wait Treadmill`)\n"
-            "- `/reserve [equipment] [time] [minutes]` - Book ahead (e.g., `/reserve PelotonTank tomorrow 6am 30min`)\n"
+            "- `/reserve [equipment] [time] [minutes]` - Book ahead (e.g., `/reserve PelotonTank tomorrow 8:30pm 60min`)\n"
             "- `/cancel [equipment] [start_time optional]` - Cancel (e.g., `/cancel pelotontank` or `/cancel PelotonTank tomorrow 6am`)\n"
             "- `/check` - See status\n"
             "Equipment: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower (case doesn’t matter!)")
@@ -90,14 +91,14 @@ def start_equipment(ack, respond, command):
     if len(args) != 2:
         respond("Usage: /start [equipment] [minutes]\nOptions: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower")
         return
-    equip, duration_str = args[0].lower(), args[1]  # Convert to lowercase
+    equip, duration_str = args[0].lower(), args[1]
     if equip not in [key.lower() for key in equipment_status]:
         respond("Invalid equipment. Options: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower")
         return
     try:
         duration = int(duration_str.replace("min", "").strip())
     except ValueError:
-        respond("Duration must be a number (e.g., 30 or 30min)")
+        respond("Duration must be a number (e.g., 30 or 60min)")
         return
     if equipment_status[equip]["user"]:
         respond(f"{equip.capitalize()} is in use by <@{equipment_status[equip]['user']}> until {equipment_status[equip]['end_time'].strftime('%d-%b %-I:%M%p').lower()}.")
@@ -129,7 +130,7 @@ def finish_equipment(ack, respond, command):
     waitlist = equipment_status[equip]["waitlist"]
     if waitlist:
         next_user = waitlist.pop(0)
-        duration = 30  # Default auto-start duration
+        duration = 30
         start_time = datetime.now(LOCAL_TZ)
         end_time = start_time + timedelta(minutes=duration)
         if is_slot_free(equip, start_time, end_time):
@@ -168,7 +169,7 @@ def reserve_equipment(ack, respond, command):
     text = command["text"].strip()
     parts = text.split()
     if len(parts) < 3:
-        respond("Usage: /reserve [equipment] [time] [minutes]\nExamples: /reserve PelotonMast 4pm 30min, /reserve PelotonTank tomorrow 6am 30min")
+        respond("Usage: /reserve [equipment] [time] [minutes]\nExamples: /reserve PelotonMast 8:30pm 60min, /reserve PelotonTank tomorrow 6am 30min")
         return
     equip = parts[0].lower()
     duration_str = parts[-1]
@@ -178,12 +179,12 @@ def reserve_equipment(ack, respond, command):
         return
     start_time = parse_time(time_str)
     if not start_time:
-        respond("Invalid time format or beyond 24 hours. Use e.g., 4pm, tomorrow 6am (within 24 hours from now).")
+        respond("Invalid time format or beyond 24 hours. Use e.g., 8pm, 8:30pm, tomorrow 6am (within 24 hours).")
         return
     try:
         duration = int(duration_str.replace("min", "").strip())
     except ValueError:
-        respond("Duration must be a number (e.g., 30 or 30min)")
+        respond("Duration must be a number (e.g., 30 or 60min)")
         return
     end_time = start_time + timedelta(minutes=duration)
     if start_time < datetime.now(LOCAL_TZ):
@@ -225,7 +226,7 @@ def cancel_reservation(ack, respond, command):
         time_str = " ".join(args[1:])
         start_time = parse_time(time_str)
         if not start_time:
-            respond("Invalid time format. Use e.g., 4pm or tomorrow 6am.")
+            respond("Invalid time format. Use e.g., 8pm, 8:30pm, or tomorrow 6am.")
             return
         for i, res in enumerate(reservations):
             if res["user"] == user and res["start_time"] == start_time:
@@ -242,7 +243,7 @@ def show_status(ack, respond, command):
     status_msg = "Equipment Status:\n"
     now = datetime.now(LOCAL_TZ)
     for equip in equipment_status:
-        status_msg += f"{equip}:\n"  # Use original capitalized name
+        status_msg += f"{equip}:\n"
         if equipment_status[equip]["user"]:
             status_msg += f"  Current: <@{equipment_status[equip]['user']}> until {equipment_status[equip]['end_time'].astimezone(LOCAL_TZ).strftime('%d-%b %-I:%M%p').lower()}\n"
         else:
