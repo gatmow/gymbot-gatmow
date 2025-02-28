@@ -7,15 +7,14 @@ import pytz
 
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"), signing_secret=os.environ.get("SLACK_SIGNING_SECRET"))
 
-# Replace 'US/Eastern' with your time zone (e.g., 'US/Pacific', 'Europe/London')
 LOCAL_TZ = pytz.timezone('US/Eastern')
 
 equipment_status = {
     "pelotonmast": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
+    "pelotontank": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
     "treadmill": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
     "fanbike": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
     "cablemachine": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
-    "pelotontank": {"user": None, "end_time": None, "waitlist": [], "reservations": []},
     "rower": {"user": None, "end_time": None, "waitlist": [], "reservations": []}
 }
 
@@ -49,11 +48,11 @@ def start_equipment(ack, respond, command):
     ack()
     args = command["text"].split()
     if len(args) != 2:
-        respond("Usage: /start [equipment] [minutes]\nOptions: pelotonmast, treadmill, fanbike, cablemachine, pelotontank, rower")
+        respond("Usage: /start [equipment] [minutes]\nOptions: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
     equip, duration_str = args[0], args[1]
     if equip not in equipment_status:
-        respond("Invalid equipment. Options: pelotonmast, treadmill, fanbike, cablemachine, pelotontank, rower")
+        respond("Invalid equipment. Options: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
     try:
         duration = int(duration_str.replace("min", "").strip())
@@ -79,13 +78,14 @@ def done_equipment(ack, respond, command):
     ack()
     equip = command["text"].strip()
     if equip not in equipment_status:
-        respond("Usage: /done [equipment]\nOptions: pelotonmast, treadmill, fanbike, cablemachine, pelotontank, rower")
+        respond("Usage: /done [equipment]\nOptions: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
     user = command["user_id"]
     if equipment_status[equip]["user"] != user:
         respond(f"You’re not using {equip}!")
         return
     equipment_status[equip]["user"] = None
+    equipment_status[equip]["end_time"] = None
     waitlist = equipment_status[equip]["waitlist"]
     if waitlist:
         next_user = waitlist.pop(0)
@@ -100,7 +100,7 @@ def wait_equipment(ack, respond, command):
     ack()
     equip = command["text"].strip()
     if equip not in equipment_status:
-        respond("Usage: /wait [equipment]\nOptions: pelotonmast, treadmill, fanbike, cablemachine, pelotontank, rower")
+        respond("Usage: /wait [equipment]\nOptions: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
     user = command["user_id"]
     if equipment_status[equip]["user"] == user:
@@ -123,7 +123,7 @@ def reserve_equipment(ack, respond, command):
         return
     equip, time_str, duration_str = args[0], args[1], args[2]
     if equip not in equipment_status:
-        respond("Invalid equipment. Options: pelotonmast, treadmill, fanbike, cablemachine, pelotontank, rower")
+        respond("Invalid equipment. Options: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
     start_time = parse_time(time_str)
     if not start_time:
@@ -146,6 +146,31 @@ def reserve_equipment(ack, respond, command):
     equipment_status[equip]["reservations"].append(reservation)
     respond(f"<@{user}> reserved {equip} from {start_time.strftime('%H:%M')} to {end_time.strftime('%H:%M')}.")
     app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> reserved {equip} from {start_time.strftime('%H:%M')} to {end_time.strftime('%H:%M')}")
+
+@app.command("/cancel")
+def cancel_reservation(ack, respond, command):
+    ack()
+    args = command["text"].split()
+    if len(args) != 2:
+        respond("Usage: /cancel [equipment] [start_time]\nExample: /cancel pelotontank 4pm")
+        return
+    equip, time_str = args[0], args[1]
+    if equip not in equipment_status:
+        respond("Invalid equipment. Options: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
+        return
+    start_time = parse_time(time_str)
+    if not start_time:
+        respond("Invalid time format. Use e.g., 4pm or 10am.")
+        return
+    user = command["user_id"]
+    reservations = equipment_status[equip]["reservations"]
+    for i, res in enumerate(reservations):
+        if res["user"] == user and res["start_time"] == start_time:
+            del reservations[i]
+            respond(f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%H:%M')}.")
+            app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%H:%M')}.")
+            return
+    respond(f"No reservation found for {equip} at {start_time.strftime('%H:%M')} by <@{user}>.")
 
 @app.command("/check")
 def show_status(ack, respond, command):
