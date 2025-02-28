@@ -206,13 +206,13 @@ def reserve_equipment(ack, respond, command):
         return
     user = command["user_id"]
     if not is_slot_free(equip, start_time, end_time):
-        respond(f"{equip_key} is booked or in use from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}. Check /check.")
+        respond(f"{equip_key} is booked or in use from {start_time.strftime('%d-%B %-I:%M%p').lower()} to {end_time.strftime('%d-%B %-I:%M%p').lower()}. Check /check.")
         return
     reservation = {"user": user, "start_time": start_time, "end_time": end_time}
     logging.debug(f"Appending reservation for {equip_key}")
     equipment_status[equip_key]["reservations"].append(reservation)
     respond(f"<@{user}> reserved {equip_key} from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}.")
-    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> reserved {equip_key} from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}")
+    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> reserved {equip_key} from {start_time.strftime('%d-%b %-I:%M%p')} to {end_time.strftime('%d-%b %-I:%M%p')}")
 
 @app.command("/cancel")
 def cancel_reservation(ack, respond, command):
@@ -237,7 +237,7 @@ def cancel_reservation(ack, respond, command):
         next_res = min(upcoming, key=lambda x: x["start_time"])
         reservations.remove(next_res)
         respond(f"<@{user}> canceled next reservation for {equip_key} at {next_res['start_time'].strftime('%d-%b %-I:%M%p').lower()}.")
-        app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip_key} at {next_res['start_time'].strftime('%d-%b %-I:%M%p').lower()}.")
+        app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip_key} at {next_res['start_time'].strftime('%d-%b %-I:%M%p')}")
     else:
         time_str = " ".join(args[1:])
         start_time = parse_time(time_str)
@@ -248,7 +248,7 @@ def cancel_reservation(ack, respond, command):
             if res["user"] == user and res["start_time"] == start_time:
                 del reservations[i]
                 respond(f"<@{user}> canceled reservation for {equip_key} at {start_time.strftime('%d-%b %-I:%M%p').lower()}.")
-                app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip_key} at {start_time.strftime('%d-%b %-I:%M%p').lower()}.")
+                app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip_key} at {start_time.strftime('%d-%b %-I:%M%p')}")
                 return
         respond(f"No reservation found for {equip_key} at {start_time.strftime('%d-%b %-I:%M%p').lower()} by <@{user}>.")
 
