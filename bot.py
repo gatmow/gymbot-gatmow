@@ -81,7 +81,7 @@ def start_equipment(ack, respond, command):
         respond("Duration must be a number (e.g., 30 or 30min)")
         return
     if equipment_status[equip]["user"]:
-        respond(f"{equip} is in use by <@{equipment_status[equip]['user']}> until {equipment_status[equip]['end_time'].strftime('%m/%d %H:%M')}.")
+        respond(f"{equip} is in use by <@{equipment_status[equip]['user']}> until {equipment_status[equip]['end_time'].strftime('%d-%b %H:%M')}.")
         return
     user = command["user_id"]
     start_time = datetime.now(LOCAL_TZ)
@@ -91,8 +91,8 @@ def start_equipment(ack, respond, command):
         return
     equipment_status[equip]["user"] = user
     equipment_status[equip]["end_time"] = end_time
-    respond(f"<@{user}> started {equip} for {duration} min. Free at {end_time.strftime('%m/%d %H:%M')}.")
-    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> started {equip} until {end_time.strftime('%m/%d %H:%M')}")
+    respond(f"<@{user}> started {equip} for {duration} min. Free at {end_time.strftime('%d-%b %H:%M')}.")
+    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> started {equip} until {end_time.strftime('%d-%b %H:%M')}")
 
 @app.command("/finish")
 def finish_equipment(ack, respond, command):
@@ -164,12 +164,12 @@ def reserve_equipment(ack, respond, command):
         return
     user = command["user_id"]
     if not is_slot_free(equip, start_time, end_time):
-        respond(f"{equip} is booked or in use from {start_time.strftime('%m/%d %H:%M')} to {end_time.strftime('%m/%d %H:%M')}. Check /check.")
+        respond(f"{equip} is booked or in use from {start_time.strftime('%d-%b %H:%M')} to {end_time.strftime('%d-%b %H:%M')}. Check /check.")
         return
     reservation = {"user": user, "start_time": start_time, "end_time": end_time}
     equipment_status[equip]["reservations"].append(reservation)
-    respond(f"<@{user}> reserved {equip} from {start_time.strftime('%m/%d %H:%M')} to {end_time.strftime('%m/%d %H:%M')}.")
-    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> reserved {equip} from {start_time.strftime('%m/%d %H:%M')} to {end_time.strftime('%m/%d %H:%M')}")
+    respond(f"<@{user}> reserved {equip} from {start_time.strftime('%d-%b %H:%M')} to {end_time.strftime('%d-%b %H:%M')}.")
+    app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> reserved {equip} from {start_time.strftime('%d-%b %H:%M')} to {end_time.strftime('%d-%b %H:%M')}")
 
 @app.command("/cancel")
 def cancel_reservation(ack, respond, command):
@@ -191,10 +191,10 @@ def cancel_reservation(ack, respond, command):
     for i, res in enumerate(reservations):
         if res["user"] == user and res["start_time"] == start_time:
             del reservations[i]
-            respond(f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%m/%d %H:%M')}.")
-            app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%m/%d %H:%M')}.")
+            respond(f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%d-%b %H:%M')}.")
+            app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%d-%b %H:%M')}.")
             return
-    respond(f"No reservation found for {equip} at {start_time.strftime('%m/%d %H:%M')} by <@{user}>.")
+    respond(f"No reservation found for {equip} at {start_time.strftime('%d-%b %H:%M')} by <@{user}>.")
 
 @app.command("/check")
 def show_status(ack, respond, command):
@@ -204,7 +204,7 @@ def show_status(ack, respond, command):
     for equip, info in equipment_status.items():
         status_msg += f"{equip}:\n"
         if info["user"]:
-            status_msg += f"  Current: <@{info['user']}> until {info['end_time'].astimezone(LOCAL_TZ).strftime('%m/%d %H:%M')}\n"
+            status_msg += f"  Current: <@{info['user']}> until {info['end_time'].astimezone(LOCAL_TZ).strftime('%d-%b %H:%M')}\n"
         else:
             status_msg += "  Current: Free\n"
         status_msg += f"  Waitlist: {len(info['waitlist'])}\n"
@@ -212,7 +212,7 @@ def show_status(ack, respond, command):
             status_msg += "  Reservations:\n"
             for res in sorted(info["reservations"], key=lambda x: x["start_time"]):
                 if res["end_time"] > now:
-                    status_msg += f"    <@{res['user']}> {res['start_time'].astimezone(LOCAL_TZ).strftime('%m/%d %H:%M')} - {res['end_time'].astimezone(LOCAL_TZ).strftime('%m/%d %H:%M')}\n"
+                    status_msg += f"    <@{res['user']}> {res['start_time'].astimezone(LOCAL_TZ).strftime('%d-%b %H:%M')} - {res['end_time'].astimezone(LOCAL_TZ).strftime('%d-%b %H:%M')}\n"
     respond(status_msg)
 
 if __name__ == "__main__":
