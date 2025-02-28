@@ -21,7 +21,7 @@ equipment_status = {
 def parse_time(time_str):
     logging.debug(f"Parsing time string: {time_str}")
     now = datetime.now(LOCAL_TZ)
-    max_future = now + timedelta(hours=12)
+    max_future = now + timedelta(hours=24)  # Changed to 24 hours
 
     if "tomorrow" in time_str:
         day = now + timedelta(days=1)
@@ -47,7 +47,7 @@ def parse_time(time_str):
     result = LOCAL_TZ.localize(datetime(day.year, day.month, day.day, hour, 0))
     logging.debug(f"Parsed time: {result.strftime('%Y-%m-%d %H:%M %Z')}")
     if result > max_future:
-        logging.debug(f"Time exceeds 12-hour limit: {result} > {max_future}")
+        logging.debug(f"Time exceeds 24-hour limit: {result} > {max_future}")
         return None
     if result < now:
         logging.debug(f"Time is in the past: {result} < {now}")
@@ -151,7 +151,7 @@ def reserve_equipment(ack, respond, command):
         return
     start_time = parse_time(time_str)
     if not start_time:
-        respond("Invalid time format or beyond 12 hours. Use e.g., 4pm, tomorrow 6am (within 12 hours from now).")
+        respond("Invalid time format or beyond 24 hours. Use e.g., 4pm, tomorrow 6am (within 24 hours from now).")
         return
     try:
         duration = int(duration_str.replace("min", "").strip())
@@ -174,27 +174,41 @@ def reserve_equipment(ack, respond, command):
 @app.command("/cancel")
 def cancel_reservation(ack, respond, command):
     ack()
-    args = command["text"].split()
-    if len(args) != 2:
-        respond("Usage: /cancel [equipment] [start_time]\nExample: /cancel pelotontank 4pm")
+    text = command["text"].strip()
+    args = text.split()
+    if len(args) < 1:
+        respond("Usage: /cancel [equipment] [start_time optional]\nExamples: /cancel pelotontank, /cancel pelotontank tomorrow 6am")
         return
-    equip, time_str = args[0], args[1]
+    equip = args[0]
     if equip not in equipment_status:
         respond("Invalid equipment. Options: pelotonmast, pelotontank, treadmill, fanbike, cablemachine, rower")
         return
-    start_time = parse_time(time_str)
-    if not start_time:
-        respond("Invalid time format. Use e.g., 4pm or tomorrow 6am.")
-        return
     user = command["user_id"]
     reservations = equipment_status[equip]["reservations"]
-    for i, res in enumerate(reservations):
-        if res["user"] == user and res["start_time"] == start_time:
-            del reservations[i]
-            respond(f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%d-%b %H:%M')}.")
-            app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%d-%b %H:%M')}.")
+    if len(args) == 1:
+        # Cancel the next upcoming reservation
+        upcoming = [res for res in reservations if res["user"] == user and res["start_time"] > datetime.now(LOCAL_TZ)]
+        if not upcoming:
+            respond(f"No upcoming reservations found for {equip} by <@{user}>.")
             return
-    respond(f"No reservation found for {equip} at {start_time.strftime('%d-%b %H:%M')} by <@{user}>.")
+        next_res = min(upcoming, key=lambda x: x["start_time"])
+        reservations.remove(next_res)
+        respond(f"<@{user}> canceled next reservation for {equip} at {next_res['start_time'].strftime('%d-%b %H:%M')}.")
+        app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip} at {next_res['start_time'].strftime('%d-%b %H:%M')}.")
+    else:
+        # Cancel specific reservation
+        time_str = " ".join(args[1:])
+        start_time = parse_time(time_str)
+        if not start_time:
+            respond("Invalid time format. Use e.g., 4pm or tomorrow 6am.")
+            return
+        for i, res in enumerate(reservations):
+            if res["user"] == user and res["start_time"] == start_time:
+                del reservations[i]
+                respond(f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%d-%b %H:%M')}.")
+                app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> canceled reservation for {equip} at {start_time.strftime('%d-%b %H:%M')}.")
+                return
+        respond(f"No reservation found for {equip} at {start_time.strftime('%d-%b %H:%M')} by <@{user}>.")
 
 @app.command("/check")
 def show_status(ack, respond, command):
