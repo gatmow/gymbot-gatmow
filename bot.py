@@ -174,6 +174,7 @@ def reserve_equipment(ack, respond, command):
     equip = parts[0].lower()
     duration_str = parts[-1]
     time_str = " ".join(parts[1:-1])
+    logging.debug(f"Equip before check: {equip}")
     if equip not in [key.lower() for key in equipment_status]:
         respond("Invalid equipment. Options: PelotonMast, PelotonTank, Treadmill, FanBike, CableMachine, Rower")
         return
@@ -195,6 +196,7 @@ def reserve_equipment(ack, respond, command):
         respond(f"{equip.capitalize()} is booked or in use from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}. Check /check.")
         return
     reservation = {"user": user, "start_time": start_time, "end_time": end_time}
+    logging.debug(f"Appending reservation for {equip}")
     equipment_status[equip]["reservations"].append(reservation)
     respond(f"<@{user}> reserved {equip.capitalize()} from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}.")
     app.client.chat_postMessage(channel="#gym-status", text=f"<@{user}> reserved {equip.capitalize()} from {start_time.strftime('%d-%b %-I:%M%p').lower()} to {end_time.strftime('%d-%b %-I:%M%p').lower()}")
